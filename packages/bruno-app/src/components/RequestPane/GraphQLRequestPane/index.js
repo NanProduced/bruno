@@ -28,6 +28,7 @@ import HeightBoundContainer from 'ui/HeightBoundContainer';
 import Settings from 'components/RequestPane/Settings';
 import ResponsiveTabs from 'ui/ResponsiveTabs';
 import AuthMode from '../Auth/AuthMode/index';
+import AiMockGenerator from 'components/RequestPane/AiMockGenerator';
 
 const TAB_CONFIG = [
   { key: 'query', label: 'Query' },
@@ -293,6 +294,16 @@ const GraphQLRequestPane = ({ item, collection, onSchemaLoad, toggleDocs, handle
     return <div className="pb-4 px-4">An error occurred!</div>;
   }
 
+  const handleVariablesContentUpdate = useCallback((content, isStreaming) => {
+    dispatch(
+      updateRequestGraphqlVariables({
+        variables: content,
+        itemUid: item.uid,
+        collectionUid: collection.uid
+      })
+    );
+  }, [dispatch, item.uid, collection.uid]);
+
   const rightContent = requestPaneTab === 'auth' ? (
     <div ref={schemaActionsRef} className="flex flex-grow justify-start items-center">
       <AuthMode item={item} collection={collection} />
@@ -311,6 +322,19 @@ const GraphQLRequestPane = ({ item, collection, onSchemaLoad, toggleDocs, handle
       >
         <IconSidebarToggle collapsed={!showQueryBuilder} size={16} strokeWidth={1.5} />
       </ActionIcon>
+      <div className="ml-2">
+        <AiMockGenerator
+          body={variables}
+          url={url}
+          method="POST"
+          docs={null}
+          schema={schema ? JSON.stringify(schema, null, 2) : null}
+          type="graphql"
+          onContentUpdate={handleVariablesContentUpdate}
+          originalContent={variables}
+          numCandidates={3}
+        />
+      </div>
       <MenuDropdown items={queryMenuItems} placement="bottom-end">
         <ActionIcon label="More actions">
           <IconDots size={16} strokeWidth={1.5} />

@@ -19,6 +19,7 @@ import { updateRequestBody } from 'providers/ReduxStore/slices/collections/index
 import { toastError } from 'utils/common/error';
 import { prettifyJsonString } from 'utils/common/index';
 import xmlFormat from 'xml-formatter';
+import AiMockGenerator from 'components/RequestPane/AiMockGenerator';
 
 const DEFAULT_MODES = [
   {
@@ -50,6 +51,11 @@ const RequestBodyMode = ({ item, collection }) => {
   const dispatch = useDispatch();
   const body = item.draft ? get(item, 'draft.request.body') : get(item, 'request.body');
   const bodyMode = body?.mode;
+
+  const url = item.draft ? get(item, 'draft.request.url', '') : get(item, 'request.url', '');
+  const method = item.draft ? get(item, 'draft.request.method', '') : get(item, 'request.method', '');
+  const docs = item.draft ? get(item, 'draft.request.docs', '') : get(item, 'request.docs', '');
+  const currentBodyContent = body?.json || '';
 
   const onModeChange = useCallback((value) => {
     dispatch(
@@ -91,6 +97,16 @@ const RequestBodyMode = ({ item, collection }) => {
     }
   };
 
+  const handleContentUpdate = useCallback((content, isStreaming) => {
+    dispatch(
+      updateRequestBody({
+        content: content,
+        itemUid: item.uid,
+        collectionUid: collection.uid
+      })
+    );
+  }, [dispatch, item.uid, collection.uid]);
+
   const menuItems = useMemo(() => {
     return DEFAULT_MODES.map((group) => ({
       ...group,
@@ -120,6 +136,21 @@ const RequestBodyMode = ({ item, collection }) => {
         <button className="ml-2" onClick={onPrettify}>
           Prettify
         </button>
+      )}
+      {bodyMode === 'json' && (
+        <div className="ml-2">
+          <AiMockGenerator
+            body={currentBodyContent}
+            url={url}
+            method={method}
+            docs={docs}
+            schema={null}
+            type="json"
+            onContentUpdate={handleContentUpdate}
+            originalContent={currentBodyContent}
+            numCandidates={3}
+          />
+        </div>
       )}
     </StyledWrapper>
   );
