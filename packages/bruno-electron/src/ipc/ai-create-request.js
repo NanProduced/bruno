@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const _ = require('lodash');
 const { ipcMain } = require('electron');
 const { getAiProviderConfig } = require('../store/ai-provider');
-const { stringifyRequest } = require('@usebruno/filestore');
+const { jsonToBruV2 } = require('@usebruno/lang');
 const {
   sanitizeName,
   generateUniqueName,
@@ -345,6 +346,107 @@ const getExistingItemsInDirectory = (dirPath) => {
   } catch {
     return [];
   }
+};
+
+const transformRequestForJsonToBru = (requestObj) => {
+  let type = _.get(requestObj, 'type');
+  switch (type) {
+    case 'http-request':
+      type = 'http';
+      break;
+    case 'graphql-request':
+      type = 'graphql';
+      break;
+    case 'grpc-request':
+      type = 'grpc';
+      break;
+    case 'ws-request':
+      type = 'ws';
+      break;
+    default:
+      type = 'http';
+  }
+
+  const sequence = _.get(requestObj, 'seq');
+
+  const bruJson = {
+    meta: {
+      name: _.get(requestObj, 'name'),
+      type: type,
+      seq: !_.isNaN(sequence) ? Number(sequence) : 1,
+      tags: _.get(requestObj, 'tags', [])
+    }
+  };
+
+  if (type === 'http' || type === 'graphql') {
+    bruJson.http = {
+      method: String(_.get(requestObj, 'request.method') ?? '').toLowerCase(),
+      url: _.get(requestObj, 'request.url'),
+      auth: _.get(requestObj, 'request.auth.mode', 'none'),
+      body: _.get(requestObj, 'request.body.mode', 'none')
+    };
+    bruJson.params = _.get(requestObj, 'request.params', []);
+    bruJson.body = _.get(requestObj, 'request.body', {
+      mode: 'json',
+      json: '{}'
+    });
+  }
+
+  if (type === 'grpc') {
+    bruJson.grpc = {
+      url: _.get(requestObj, 'request.url'),
+      auth: _.get(requestObj, 'request.auth.mode', 'none'),
+      body: _.get(requestObj, 'request.body.mode', 'grpc')
+    };
+    const method = _.get(requestObj, 'request.method');
+    const methodType = _.get(requestObj, 'request.methodType');
+    const protoPath = _.get(requestObj, 'request.protoPath');
+    if (method) bruJson.grpc.method = method;
+    if (methodType) bruJson.grpc.methodType = methodType;
+    if (protoPath) bruJson.grpc.protoPath = protoPath;
+    bruJson.body = _.get(requestObj, 'request.body', {
+      mode: 'grpc',
+      grpc: _.get(requestObj, 'request.body.grpc', [
+        {
+          name: 'message 1',
+          content: '{}'
+        }
+      ])
+    });
+    bruJson.metadata = _.get(requestObj, 'request.headers', []);
+  } else if (type === 'ws') {
+    bruJson.ws = {
+      url: _.get(requestObj, 'request.url'),
+      auth: _.get(requestObj, 'request.auth.mode', 'none'),
+      body: _.get(requestObj, 'request.body.mode', 'ws')
+    };
+    bruJson.body = _.get(requestObj, 'request.body', {
+      mode: 'ws',
+      ws: _.get(requestObj, 'request.body.ws', [
+        {
+          name: 'message 1',
+          content: '{}'
+        }
+      ])
+    });
+  }
+
+  if (type !== 'grpc') {
+    bruJson.headers = _.get(requestObj, 'request.headers', []);
+  }
+  bruJson.auth = _.get(requestObj, 'request.auth', {});
+  bruJson.script = _.get(requestObj, 'request.script', {});
+  bruJson.vars = {
+    req: _.get(requestObj, 'request.vars.req', []),
+    res: _.get(requestObj, 'request.vars.res', [])
+  };
+  bruJson.assertions = _.get(requestObj, 'request.assertions', []);
+  bruJson.tests = _.get(requestObj, 'request.tests', '');
+  bruJson.settings = _.get(requestObj, 'settings', {});
+  bruJson.docs = _.get(requestObj, 'request.docs', '');
+  bruJson.examples = _.get(requestObj, 'examples', []);
+
+  return bruJson;
 };
 
 const registerAiCreateRequestIpc = (mainWindow) => {

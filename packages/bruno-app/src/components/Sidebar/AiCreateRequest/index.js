@@ -5,7 +5,7 @@ import * as Yup from 'yup';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   IconCaretDown,
-  IconSparkles,
+  IconWand,
   IconLoader2,
   IconCheck,
   IconAlertCircle
@@ -393,7 +393,7 @@ const AiCreateRequest = ({ onClose }) => {
             {isGenerating && streamContent && (
               <div className="mt-4">
                 <label className="block font-medium mb-1 flex items-center">
-                  <IconSparkles size={14} className="mr-1 text-yellow-500" />
+                  <IconWand size={14} className="mr-1 text-yellow-500" />
                   AI is generating...
                   <span className="loading-dots ml-1">.</span>
                   <span className="loading-dots">.</span>
@@ -428,7 +428,7 @@ const AiCreateRequest = ({ onClose }) => {
                   </>
                 ) : (
                   <>
-                    <IconSparkles size={14} className="mr-2" />
+                    <IconWand size={14} className="mr-2" />
                     Generate Request
                   </>
                 )}
