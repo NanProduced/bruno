@@ -6,12 +6,22 @@ import { updateRequestGraphqlVariables } from 'providers/ReduxStore/slices/colle
 import { sendRequest, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { useTheme } from 'providers/Theme';
 import { IconWand } from '@tabler/icons';
-import { startGeneration, generationSuccess, generationFailure } from 'providers/ReduxStore/slices/aiMock';
+import { startGeneration, generationFailure } from 'providers/ReduxStore/slices/aiMock';
 import { toastError } from 'utils/common/error';
 import MockCandidatesPanel from 'components/RequestPane/MockCandidatesPanel';
 import StyledWrapper from './StyledWrapper';
 
-const GraphQLVariables = ({ variables, item, collection }) => {
+const getGraphqlSchemaText = (schema) => {
+  if (!schema) return '';
+  try {
+    const { printSchema } = require('graphql');
+    return printSchema(schema);
+  } catch {
+    return '';
+  }
+};
+
+const GraphQLVariables = ({ variables, item, collection, schema }) => {
   const dispatch = useDispatch();
   const [isGeneratingMock, setIsGeneratingMock] = useState(false);
 
@@ -38,6 +48,8 @@ const GraphQLVariables = ({ variables, item, collection }) => {
     const url = item.draft ? get(item, 'draft.request.url') : get(item, 'request.url');
     const docs = item.draft ? get(item, 'draft.request.docs') : get(item, 'request.docs');
     const existingBody = variables || '';
+    const graphqlQuery = item.draft ? get(item, 'draft.request.body.graphql.query') : get(item, 'request.body.graphql.query');
+    const graphqlSchemaText = getGraphqlSchemaText(schema);
 
     dispatch(startGeneration({ originalBody: existingBody }));
     setIsGeneratingMock(true);
@@ -50,12 +62,12 @@ const GraphQLVariables = ({ variables, item, collection }) => {
         url,
         existingBody,
         docs,
-        bodyType: 'graphql-variables'
+        bodyType: 'graphql-variables',
+        graphqlQuery,
+        graphqlSchemaText
       });
 
-      if (result.success) {
-        dispatch(generationSuccess({ candidates: result.candidates }));
-      } else {
+      if (!result.success) {
         dispatch(generationFailure({ error: result.error }));
         toastError(new Error(result.error));
       }

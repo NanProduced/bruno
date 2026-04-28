@@ -8,14 +8,23 @@ import StyledWrapper from './StyledWrapper';
 
 const PROVIDERS = [
   { id: 'openai', label: 'OpenAI' },
+  { id: 'openai-compatible', label: 'OpenAI Compatible (DeepSeek / Qwen / Moonshot / ...)' },
   { id: 'anthropic', label: 'Anthropic' },
   { id: 'ollama', label: 'Ollama (Local)' }
 ];
 
 const PROVIDER_MODELS = {
-  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-  anthropic: ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307'],
-  ollama: ['llama3', 'mistral', 'codellama', 'qwen2']
+  'openai': ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  'openai-compatible': ['deepseek-chat', 'deepseek-reasoner', 'qwen-turbo', 'qwen-plus', 'qwen-max', 'moonshot-v1-8k', 'moonshot-v1-32k', 'glm-4-flash', 'glm-4-air', 'yi-lightning'],
+  'anthropic': ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307'],
+  'ollama': ['llama3', 'mistral', 'codellama', 'qwen2']
+};
+
+const PROVIDER_BASE_URLS = {
+  'openai': 'https://api.openai.com/v1',
+  'openai-compatible': '',
+  'anthropic': 'https://api.anthropic.com',
+  'ollama': 'http://localhost:11434'
 };
 
 const Ai = () => {
@@ -87,6 +96,9 @@ const Ai = () => {
   const currentProvider = formik.values.provider;
   const availableModels = PROVIDER_MODELS[currentProvider] || [];
   const isOllama = currentProvider === 'ollama';
+  const isOpenAICompatible = currentProvider === 'openai-compatible';
+  const needsApiKey = currentProvider && !isOllama;
+  const needsBaseUrl = isOpenAICompatible;
 
   return (
     <StyledWrapper className="w-full">
@@ -116,7 +128,7 @@ const Ai = () => {
           </select>
         </div>
 
-        {!isOllama && currentProvider && (
+        {needsApiKey && (
           <div className="flex flex-col mt-4">
             <label className="block select-none" htmlFor="apiKey">API Key</label>
             <input
@@ -137,8 +149,13 @@ const Ai = () => {
 
         <div className="flex flex-col mt-4">
           <label className="block select-none" htmlFor="baseUrl">
-            Base URL {isOllama ? '' : '(Optional — override default endpoint)'}
+            Base URL {needsBaseUrl ? '' : isOllama ? '' : '(Optional — override default endpoint)'}
           </label>
+          {needsBaseUrl && (
+            <p className="text-muted text-xs mt-1">
+              Required. Enter the API base URL for your provider (e.g. https://api.deepseek.com/v1)
+            </p>
+          )}
           <input
             id="baseUrl"
             name="baseUrl"
@@ -153,11 +170,9 @@ const Ai = () => {
             placeholder={
               isOllama
                 ? 'http://localhost:11434'
-                : currentProvider === 'openai'
-                  ? 'https://api.openai.com/v1'
-                  : currentProvider === 'anthropic'
-                    ? 'https://api.anthropic.com'
-                    : ''
+                : isOpenAICompatible
+                  ? 'https://api.deepseek.com/v1'
+                  : PROVIDER_BASE_URLS[currentProvider] || ''
             }
           />
         </div>
@@ -189,7 +204,7 @@ const Ai = () => {
               spellCheck="false"
               onChange={formik.handleChange}
               value={formik.values.model}
-              placeholder="e.g. gpt-4o-mini"
+              placeholder="e.g. deepseek-chat"
             />
           )}
         </div>

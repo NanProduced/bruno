@@ -5,7 +5,8 @@ const initialState = {
   candidates: [],
   error: null,
   showPanel: false,
-  originalBody: ''
+  originalBody: '',
+  streamingText: ''
 };
 
 const aiMockSlice = createSlice({
@@ -17,15 +18,21 @@ const aiMockSlice = createSlice({
       state.error = null;
       state.showPanel = true;
       state.originalBody = action.payload?.originalBody || '';
+      state.streamingText = '';
+    },
+    appendStreamChunk: (state, action) => {
+      state.streamingText = action.payload.accumulated || state.streamingText + (action.payload.chunk || '');
     },
     generationSuccess: (state, action) => {
       state.isGenerating = false;
       state.candidates = action.payload.candidates || [];
       state.error = null;
+      state.streamingText = '';
     },
     generationFailure: (state, action) => {
       state.isGenerating = false;
       state.error = action.payload.error;
+      state.streamingText = '';
     },
     addCandidate: (state, action) => {
       state.candidates.push(...(action.payload.candidates || []));
@@ -35,6 +42,7 @@ const aiMockSlice = createSlice({
       state.candidates = [];
       state.error = null;
       state.originalBody = '';
+      state.streamingText = '';
     },
     clearError: (state) => {
       state.error = null;
@@ -44,6 +52,7 @@ const aiMockSlice = createSlice({
 
 export const {
   startGeneration,
+  appendStreamChunk,
   generationSuccess,
   generationFailure,
   addCandidate,

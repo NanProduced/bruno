@@ -150,7 +150,31 @@ const findSchemaForRequest = (spec, method, urlPath) => {
   return null;
 };
 
-const buildPrompt = ({ schema, existingBody, method, url, docs, candidateCount }) => {
+const buildPrompt = ({ schema, existingBody, method, url, docs, candidateCount, bodyType, graphqlQuery, graphqlSchemaText }) => {
+  if (bodyType === 'graphql-variables') {
+    let prompt = `You are a mock data generator for GraphQL API requests. Generate ${candidateCount} different realistic mock JSON variable examples for a GraphQL request.`;
+
+    if (graphqlQuery && graphqlQuery.trim()) {
+      prompt += `\n\nThe GraphQL query is:\n\`\`\`graphql\n${graphqlQuery}\n\`\`\``;
+    }
+
+    if (graphqlSchemaText && graphqlSchemaText.trim()) {
+      prompt += `\n\nThe GraphQL schema (partial) is:\n\`\`\`graphql\n${graphqlSchemaText.substring(0, 3000)}\n\`\`\``;
+    }
+
+    if (existingBody && existingBody.trim()) {
+      prompt += `\n\nThe current variables JSON is:\n\`\`\`json\n${existingBody}\n\`\`\`\nUse it as a structural reference but generate different realistic values.`;
+    }
+
+    if (url) {
+      prompt += `\n\nThe GraphQL endpoint is: ${url}`;
+    }
+
+    prompt += `\n\nIMPORTANT: Return your response as a JSON array with exactly ${candidateCount} objects. Each object should have a "name" field (a short descriptive name) and a "body" field (the mock variables JSON as a string). Example format:\n[{"name": "Basic example", "body": "{\\\"id\\\": 1}"}]\n\nMake the mock data realistic and consistent with the GraphQL query variables. Use appropriate data types, realistic string values, and valid formats. Do NOT include markdown formatting or code fences. Return ONLY the JSON array.`;
+
+    return prompt;
+  }
+
   let prompt = `You are a mock data generator for API requests. Generate ${candidateCount} different realistic mock JSON body examples for an HTTP ${method.toUpperCase()} request to "${url}".`;
 
   if (schema) {
@@ -170,10 +194,14 @@ const buildPrompt = ({ schema, existingBody, method, url, docs, candidateCount }
   return prompt;
 };
 
-const callOpenAI = async ({ apiKey, baseUrl, model, prompt }) => {
-  const url = baseUrl
-    ? `${baseUrl.replace(/\/+$/, '')}/chat/completions`
-    : 'https://api.openai.com/v1/chat/completions';
+const streamOpenAI = async ({ apiKey, baseUrl, model, prompt, onChunk }) => {
+  let url;
+  if (baseUrl) {
+    const base = baseUrl.replace(/\/+$/, '');
+    url = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+  } else {
+    url = 'https://api.openai.com/v1/chat/completions';
+  }
 
   const modelName = model || 'gpt-4o-mini';
 
@@ -186,23 +214,56 @@ const callOpenAI = async ({ apiKey, baseUrl, model, prompt }) => {
         { role: 'user', content: prompt }
       ],
       temperature: 0.8,
-      max_tokens: 4096
+      max_tokens: 4096,
+      stream: true
     },
     {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      timeout: 60000
+      timeout: 120000,
+      responseType: 'stream'
     }
   );
 
-  const content = response.data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response from LLM');
-  return content;
+  return new Promise((resolve, reject) => {
+    let fullContent = '';
+    let buffer = '';
+
+    response.data.on('data', (chunk) => {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        const data = trimmed.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullContent += delta;
+            onChunk(delta, fullContent);
+          }
+        } catch {}
+      }
+    });
+
+    response.data.on('end', () => {
+      resolve(fullContent);
+    });
+
+    response.data.on('error', (err) => {
+      reject(err);
+    });
+  });
 };
 
-const callAnthropic = async ({ apiKey, baseUrl, model, prompt }) => {
+const streamAnthropic = async ({ apiKey, baseUrl, model, prompt, onChunk }) => {
   const url = baseUrl
     ? `${baseUrl.replace(/\/+$/, '')}/messages`
     : 'https://api.anthropic.com/v1/messages';
@@ -214,7 +275,8 @@ const callAnthropic = async ({ apiKey, baseUrl, model, prompt }) => {
     {
       model: modelName,
       max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
+      stream: true
     },
     {
       headers: {
@@ -223,16 +285,46 @@ const callAnthropic = async ({ apiKey, baseUrl, model, prompt }) => {
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      timeout: 60000
+      timeout: 120000,
+      responseType: 'stream'
     }
   );
 
-  const content = response.data?.content?.[0]?.text;
-  if (!content) throw new Error('Empty response from LLM');
-  return content;
+  return new Promise((resolve, reject) => {
+    let fullContent = '';
+    let buffer = '';
+
+    response.data.on('data', (chunk) => {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        const data = trimmed.slice(6);
+
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+            fullContent += parsed.delta.text;
+            onChunk(parsed.delta.text, fullContent);
+          }
+        } catch {}
+      }
+    });
+
+    response.data.on('end', () => {
+      resolve(fullContent);
+    });
+
+    response.data.on('error', (err) => {
+      reject(err);
+    });
+  });
 };
 
-const callOllama = async ({ baseUrl, model, prompt }) => {
+const streamOllama = async ({ baseUrl, model, prompt, onChunk }) => {
   const url = `${(baseUrl || 'http://localhost:11434').replace(/\/+$/, '')}/api/generate`;
 
   const modelName = model || 'llama3';
@@ -242,34 +334,67 @@ const callOllama = async ({ baseUrl, model, prompt }) => {
     {
       model: modelName,
       prompt,
-      stream: false,
+      stream: true,
       options: {
         temperature: 0.8
       }
     },
     {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 120000
+      timeout: 120000,
+      responseType: 'stream'
     }
   );
 
-  const content = response.data?.response;
-  if (!content) throw new Error('Empty response from Ollama');
-  return content;
+  return new Promise((resolve, reject) => {
+    let fullContent = '';
+    let buffer = '';
+
+    response.data.on('data', (chunk) => {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed.response) {
+            fullContent += parsed.response;
+            onChunk(parsed.response, fullContent);
+          }
+        } catch {}
+      }
+    });
+
+    response.data.on('end', () => {
+      resolve(fullContent);
+    });
+
+    response.data.on('error', (err) => {
+      reject(err);
+    });
+  });
 };
 
-const callLLM = async (config, prompt, candidateCount) => {
+const streamLLM = async (config, prompt, onChunk) => {
   const { provider, apiKey, baseUrl, model } = config;
 
   switch (provider) {
     case 'openai':
       if (!apiKey) throw new Error('OpenAI API key is not configured');
-      return callOpenAI({ apiKey, baseUrl, model, prompt });
+      return streamOpenAI({ apiKey, baseUrl, model, prompt, onChunk });
+    case 'openai-compatible':
+      if (!apiKey) throw new Error('API key is not configured');
+      if (!baseUrl) throw new Error('Base URL is required for OpenAI Compatible provider');
+      return streamOpenAI({ apiKey, baseUrl, model, prompt, onChunk });
     case 'anthropic':
       if (!apiKey) throw new Error('Anthropic API key is not configured');
-      return callAnthropic({ apiKey, baseUrl, model, prompt });
+      return streamAnthropic({ apiKey, baseUrl, model, prompt, onChunk });
     case 'ollama':
-      return callOllama({ baseUrl, model, prompt });
+      return streamOllama({ baseUrl, model, prompt, onChunk });
     default:
       throw new Error(`Unsupported AI provider: ${provider}`);
   }
@@ -317,7 +442,26 @@ const parseLLMResponse = (rawContent, candidateCount) => {
   }
 };
 
+const resolveSchema = (collectionPath, method, url) => {
+  if (!collectionPath) return null;
+  const spec = readSpecContent(collectionPath);
+  if (!spec) return null;
+  const resolved = resolveRefs(spec, spec);
+  const merged = mergeAllOf(resolved);
+  const schema = findSchemaForRequest(merged, method, url);
+  if (schema) {
+    return mergeAllOf(resolveRefs(schema, merged));
+  }
+  return null;
+};
+
 const registerAiMockIpc = (mainWindow) => {
+  const sendToRenderer = (channel, data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, data);
+    }
+  };
+
   ipcMain.handle('renderer:get-ai-provider-config', async () => {
     try {
       const config = getAiProviderConfig();
@@ -338,7 +482,7 @@ const registerAiMockIpc = (mainWindow) => {
 
   ipcMain.handle(
     'renderer:generate-ai-mock',
-    async (event, { collectionPath, method, url, existingBody, docs, bodyType }) => {
+    async (event, { collectionPath, method, url, existingBody, docs, bodyType, graphqlQuery, graphqlSchemaText }) => {
       try {
         const config = getAiProviderConfig();
         if (!config.provider) {
@@ -346,31 +490,31 @@ const registerAiMockIpc = (mainWindow) => {
         }
 
         let schema = null;
-        if (collectionPath) {
-          const spec = readSpecContent(collectionPath);
-          if (spec) {
-            const resolved = resolveRefs(spec, spec);
-            const merged = mergeAllOf(resolved);
-            schema = findSchemaForRequest(merged, method, url);
-            if (schema) {
-              schema = mergeAllOf(resolveRefs(schema, merged));
-            }
-          }
+        if (bodyType !== 'graphql-variables') {
+          schema = resolveSchema(collectionPath, method, url);
         }
 
         const candidateCount = config.mockCandidateCount || 3;
-        const prompt = buildPrompt({ schema, existingBody, method, url, docs, candidateCount });
-        const rawContent = await callLLM(config, prompt, candidateCount);
-        const candidates = parseLLMResponse(rawContent, candidateCount);
+        const prompt = buildPrompt({ schema, existingBody, method, url, docs, candidateCount, bodyType, graphqlQuery, graphqlSchemaText });
+
+        let fullContent = '';
+        await streamLLM(config, prompt, (chunk, accumulated) => {
+          fullContent = accumulated;
+          sendToRenderer('main:ai-mock-chunk', { chunk, accumulated });
+        });
+
+        const candidates = parseLLMResponse(fullContent, candidateCount);
+        sendToRenderer('main:ai-mock-done', { candidates });
 
         return { success: true, candidates };
       } catch (error) {
+        sendToRenderer('main:ai-mock-error', { error: error.message });
         return { success: false, error: error.message };
       }
     }
   );
 
-  ipcMain.handle('renderer:generate-ai-mock-one-more', async (event, { collectionPath, method, url, existingBody, docs }) => {
+  ipcMain.handle('renderer:generate-ai-mock-one-more', async (event, { collectionPath, method, url, existingBody, docs, bodyType, graphqlQuery, graphqlSchemaText }) => {
     try {
       const config = getAiProviderConfig();
       if (!config.provider) {
@@ -378,24 +522,24 @@ const registerAiMockIpc = (mainWindow) => {
       }
 
       let schema = null;
-      if (collectionPath) {
-        const spec = readSpecContent(collectionPath);
-        if (spec) {
-          const resolved = resolveRefs(spec, spec);
-          const merged = mergeAllOf(resolved);
-          schema = findSchemaForRequest(merged, method, url);
-          if (schema) {
-            schema = mergeAllOf(resolveRefs(schema, merged));
-          }
-        }
+      if (bodyType !== 'graphql-variables') {
+        schema = resolveSchema(collectionPath, method, url);
       }
 
-      const prompt = buildPrompt({ schema, existingBody, method, url, docs, candidateCount: 1 });
-      const rawContent = await callLLM(config, prompt, 1);
-      const candidates = parseLLMResponse(rawContent, 1);
+      const prompt = buildPrompt({ schema, existingBody, method, url, docs, candidateCount: 1, bodyType, graphqlQuery, graphqlSchemaText });
+
+      let fullContent = '';
+      await streamLLM(config, prompt, (chunk, accumulated) => {
+        fullContent = accumulated;
+        sendToRenderer('main:ai-mock-chunk', { chunk, accumulated });
+      });
+
+      const candidates = parseLLMResponse(fullContent, 1);
+      sendToRenderer('main:ai-mock-done', { candidates });
 
       return { success: true, candidates };
     } catch (error) {
+      sendToRenderer('main:ai-mock-error', { error: error.message });
       return { success: false, error: error.message };
     }
   });

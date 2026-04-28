@@ -1,9 +1,9 @@
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import get from 'lodash/get';
 import { IconX, IconRefresh, IconChevronRight, IconChevronDown } from '@tabler/icons';
 import { updateRequestBody, updateRequestGraphqlVariables } from 'providers/ReduxStore/slices/collections';
-import { dismissPanel, addCandidate, generationFailure } from 'providers/ReduxStore/slices/aiMock';
+import { dismissPanel, addCandidate, generationFailure, appendStreamChunk, generationSuccess } from 'providers/ReduxStore/slices/aiMock';
 import { prettifyJsonString } from 'utils/common/index';
 import { toastError } from 'utils/common/error';
 import StyledWrapper from './StyledWrapper';
@@ -76,12 +76,34 @@ const MockCandidateItem = ({ candidate, index, originalBody, onSelect }) => {
 
 const MockCandidatesPanel = ({ item, collection, bodyType }) => {
   const dispatch = useDispatch();
-  const { isGenerating, candidates, error, showPanel, originalBody } = useSelector((state) => state.aiMock);
+  const { isGenerating, candidates, error, showPanel, originalBody, streamingText } = useSelector((state) => state.aiMock);
+
+  useEffect(() => {
+    const { ipcRenderer } = window;
+
+    const unsubChunk = ipcRenderer.on('main:ai-mock-chunk', (data) => {
+      dispatch(appendStreamChunk({ chunk: data.chunk, accumulated: data.accumulated }));
+    });
+
+    const unsubDone = ipcRenderer.on('main:ai-mock-done', (data) => {
+      dispatch(generationSuccess({ candidates: data.candidates }));
+    });
+
+    const unsubError = ipcRenderer.on('main:ai-mock-error', (data) => {
+      dispatch(generationFailure({ error: data.error }));
+    });
+
+    return () => {
+      unsubChunk();
+      unsubDone();
+      unsubError();
+    };
+  }, [dispatch]);
 
   const handleSelect = useCallback((body) => {
     try {
       let content = body;
-      if (bodyType === 'json') {
+      if (bodyType === 'json' || bodyType === 'graphql-variables') {
         try {
           content = prettifyJsonString(body);
         } catch {}
@@ -118,8 +140,11 @@ const MockCandidatesPanel = ({ item, collection, bodyType }) => {
       const docs = item.draft ? get(item, 'draft.request.docs') : get(item, 'request.docs');
 
       let existingBody = '';
+      let graphqlQuery = '';
+      let graphqlSchemaText = '';
       if (bodyType === 'graphql-variables') {
         existingBody = body?.graphql?.variables || '';
+        graphqlQuery = body?.graphql?.query || '';
       } else {
         existingBody = body?.json || body?.text || body?.xml || '';
       }
@@ -130,7 +155,10 @@ const MockCandidatesPanel = ({ item, collection, bodyType }) => {
         method,
         url,
         existingBody,
-        docs
+        docs,
+        bodyType,
+        graphqlQuery,
+        graphqlSchemaText
       });
 
       if (result.success) {
@@ -165,10 +193,17 @@ const MockCandidatesPanel = ({ item, collection, bodyType }) => {
           </div>
         </div>
 
-        {isGenerating && (
+        {isGenerating && streamingText && (
+          <div className="streaming-preview">
+            <div className="streaming-label">Generating...</div>
+            <pre className="streaming-text">{streamingText}</pre>
+          </div>
+        )}
+
+        {isGenerating && !streamingText && (
           <div className="loading-indicator">
             <div className="spinner" />
-            <span>Generating mock data...</span>
+            <span>Connecting to AI provider...</span>
           </div>
         )}
 

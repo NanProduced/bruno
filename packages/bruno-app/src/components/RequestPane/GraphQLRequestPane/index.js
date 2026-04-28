@@ -239,7 +239,7 @@ const GraphQLRequestPane = ({ item, collection, onSchemaLoad, toggleDocs, handle
               </button>
               {variablesOpen && (
                 <div className="flex-1 min-h-0 relative">
-                  <GraphQLVariables item={item} variables={variables} collection={collection} />
+                  <GraphQLVariables item={item} variables={variables} collection={collection} schema={schema} />
                 </div>
               )}
             </div>

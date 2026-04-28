@@ -226,6 +226,52 @@ const StyledWrapper = styled.div`
     text-align: center;
     font-size: 0.75rem;
   }
+
+  .streaming-preview {
+    padding: 8px;
+    border-bottom: 1px solid ${(props) => props.theme.sidebar.border};
+  }
+
+  .streaming-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: ${(props) => props.theme.colors.primary};
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    &::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: ${(props) => props.theme.colors.primary};
+      animation: blink 1s ease-in-out infinite;
+    }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .streaming-text {
+    font-family: monospace;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: ${(props) => props.theme.text};
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid ${(props) => props.theme.sidebar.border};
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.05);
+  }
 `;
 
 export default StyledWrapper;
