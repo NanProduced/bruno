@@ -510,7 +510,7 @@ const registerAiCreateRequestIpc = (mainWindow) => {
 
         const baseName = sanitizeName(requestName);
         const uniqueName = generateUniqueName(baseName, (name) => existingNames.includes(name));
-        const filename = `${uniqueName}.${collectionFormat}`;
+        const filename = `${uniqueName}.bru`;
         const filePath = path.join(targetDir, filename);
 
         const requestObj = {
@@ -554,7 +554,8 @@ const registerAiCreateRequestIpc = (mainWindow) => {
           }
         }
 
-        const content = stringifyRequest(requestObj, { format: collectionFormat });
+        const transformedJson = transformRequestForJsonToBru(requestObj);
+        const content = jsonToBruV2(transformedJson);
         await writeFile(filePath, content);
 
         sendToRenderer('main:ai-generate-request-done', {
