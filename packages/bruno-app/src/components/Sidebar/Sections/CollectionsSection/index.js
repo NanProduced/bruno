@@ -13,7 +13,8 @@ import {
   IconSortDescendingLetters,
   IconSquareX,
   IconBox,
-  IconTerminal2
+  IconTerminal2,
+  IconSparkles
 } from '@tabler/icons';
 
 import { importCollection, openCollection, importCollectionFromZip, newHttpRequest } from 'providers/ReduxStore/slices/collections/actions';
@@ -37,6 +38,7 @@ import Collections from 'components/Sidebar/Collections';
 import SidebarSection from 'components/Sidebar/SidebarSection';
 import { openDevtoolsAndSwitchToTerminal } from 'utils/terminal';
 import useKeybinding from 'hooks/useKeybinding';
+import AiCreateRequest from 'components/Sidebar/AiCreateRequest';
 
 const CollectionsSection = () => {
   const dispatch = useDispatch();
@@ -58,6 +60,7 @@ const CollectionsSection = () => {
   const [importCollectionLocationModalOpen, setImportCollectionLocationModalOpen] = useState(false);
   const [showCloneGitModal, setShowCloneGitModal] = useState(false);
   const [gitRepositoryUrl, setGitRepositoryUrl] = useState(null);
+  const [aiCreateRequestModalOpen, setAiCreateRequestModalOpen] = useState(false);
 
   // Import collection shortcut
   useKeybinding('importCollection', () => {
@@ -242,6 +245,18 @@ const CollectionsSection = () => {
 
   const addDropdownItems = [
     {
+      id: 'ai-create-request',
+      leftSection: IconSparkles,
+      label: 'AI Create Request',
+      onClick: () => {
+        setAiCreateRequestModalOpen(true);
+      }
+    },
+    {
+      id: 'divider-1',
+      type: 'divider'
+    },
+    {
       id: 'create',
       leftSection: IconPlus,
       label: 'Create collection',
@@ -394,6 +409,11 @@ const CollectionsSection = () => {
           onClose={handleCloseGitModal}
           onFinish={handleCloseGitModal}
           collectionRepositoryUrl={gitRepositoryUrl}
+        />
+      )}
+      {aiCreateRequestModalOpen && (
+        <AiCreateRequest
+          onClose={() => setAiCreateRequestModalOpen(false)}
         />
       )}
       <SidebarSection
