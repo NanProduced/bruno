@@ -317,7 +317,7 @@ async function callAiApi({ provider, apiKey, baseUrl, model, prompt, maxTokens }
 
   let response;
 
-  if (provider === 'openai' || (provider === 'custom' && baseUrl.includes('openai'))) {
+  if (provider === 'openai' || provider === 'custom') {
     const endpoint = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
 
     response = await axios.post(
@@ -370,35 +370,6 @@ async function callAiApi({ provider, apiKey, baseUrl, model, prompt, maxTokens }
     );
 
     return response.data.content[0].text;
-  } else if (provider === 'custom') {
-    const endpoint = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
-
-    response = await axios.post(
-      `${endpoint}/chat/completions`,
-      {
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant that generates realistic mock data for API testing. Always return valid JSON without any markdown formatting.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.7
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        }
-      }
-    );
-
-    return response.data.choices[0].message.content;
   }
 
   throw new Error(`Unsupported AI provider: ${provider}`);
@@ -410,7 +381,7 @@ async function streamAiApi({ provider, apiKey, baseUrl, model, prompt, maxTokens
   let fullText = '';
 
   try {
-    if (provider === 'openai' || (provider === 'custom' && baseUrl.includes('openai'))) {
+    if (provider === 'openai' || provider === 'custom') {
       const endpoint = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
 
       const response = await axios.post(
@@ -508,61 +479,6 @@ async function streamAiApi({ provider, apiKey, baseUrl, model, prompt, maxTokens
               } else if (parsed.type === 'message_stop') {
                 onComplete(fullText);
                 return;
-              }
-            } catch (e) {
-            }
-          }
-        }
-      }
-
-      onComplete(fullText);
-    } else if (provider === 'custom') {
-      const endpoint = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
-
-      const response = await axios.post(
-        `${endpoint}/chat/completions`,
-        {
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a helpful assistant that generates realistic mock data for API testing. Always return valid JSON without any markdown formatting.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          max_tokens: maxTokens,
-          temperature: 0.7,
-          stream: true
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          responseType: 'stream'
-        }
-      );
-
-      for await (const chunk of response.data) {
-        const lines = chunk.toString().split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              onComplete(fullText);
-              return;
-            }
-
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content || '';
-              if (content) {
-                fullText += content;
-                onChunk(content);
               }
             } catch (e) {
             }

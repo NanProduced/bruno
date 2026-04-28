@@ -94,10 +94,12 @@ const AiSettings = () => {
       const result = await ipcRenderer.invoke('renderer:get-ai-config');
 
       if (result.success) {
-        formik.setValues({
+        const newValues = {
           ...DEFAULT_CONFIG,
           ...result.data
-        });
+        };
+        formik.setValues(newValues, false);
+        formik.resetForm({ values: newValues });
       } else {
         toast.error('Failed to load AI configuration');
       }
@@ -136,7 +138,7 @@ const AiSettings = () => {
   const handleSaveRef = useRef(handleSave);
   handleSaveRef.current = handleSave;
 
-  const debouncedSave = useCallback(
+  const debouncedSaveRef = useRef(
     debounce((values) => {
       aiConfigSchema.validate(values, { abortEarly: true })
         .then((validatedValues) => {
@@ -144,18 +146,17 @@ const AiSettings = () => {
         })
         .catch((error) => {
         });
-    }, 500),
-    [aiConfigSchema]
+    }, 500)
   );
 
   useEffect(() => {
     if (formik.dirty && formik.isValid && !loading) {
-      debouncedSave(formik.values);
+      debouncedSaveRef.current(formik.values);
     }
     return () => {
-      debouncedSave.flush();
+      debouncedSaveRef.current.flush();
     };
-  }, [formik.values, formik.dirty, formik.isValid, loading, debouncedSave]);
+  }, [formik.values, formik.dirty, formik.isValid, loading]);
 
   const toggleApiKeyVisibility = (provider) => {
     setShowApiKey((prev) => ({
