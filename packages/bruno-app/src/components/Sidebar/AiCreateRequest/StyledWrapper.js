@@ -12,7 +12,7 @@ const StyledWrapper = styled.div`
   }
 
   .preview-section {
-    background-color: ${(props) => props.theme.body.bg};
+    background-color: ${(props) => props.theme.input.bg};
     border: 1px solid ${(props) => props.theme.input.border};
     border-radius: ${(props) => props.theme.border.radius.base};
     padding: 0.75rem;
@@ -29,7 +29,7 @@ const StyledWrapper = styled.div`
   }
 
   .stream-preview {
-    background-color: ${(props) => props.theme.body.bg};
+    background-color: ${(props) => props.theme.input.bg};
     border: 1px solid ${(props) => props.theme.input.border};
     border-radius: ${(props) => props.theme.border.radius.base};
     padding: 0.75rem;
