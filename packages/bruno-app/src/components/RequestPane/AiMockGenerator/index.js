@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
-import { IconSparkles, IconLoader2, IconAlertTriangle, IconSettings } from '@tabler/icons';
+import { IconWand, IconLoader2, IconAlertTriangle, IconSettings } from '@tabler/icons';
 import StyledWrapper from './StyledWrapper';
 import useAiMockGenerator from 'hooks/useAiMockGenerator';
 import { useDispatch } from 'react-redux';
@@ -101,7 +101,7 @@ const AiMockGenerator = ({
         {isLoading || isStreaming ? (
           <IconLoader2 className="animate-spin" size={14} strokeWidth={1.5} />
         ) : (
-          <IconSparkles size={14} strokeWidth={1.5} />
+          <IconWand size={14} strokeWidth={1.5} />
         )}
         <span>{buttonLabel()}</span>
       </button>
