@@ -11,7 +11,7 @@ import {
   IconZoomQuestion,
   IconSquareLetterB,
   IconDatabase,
-  IconSparkles
+  IconWand
 } from '@tabler/icons';
 
 import Support from './Support';
@@ -109,7 +109,7 @@ const Preferences = () => {
             Cache
           </div>
           <div className={getTabClassname('ai')} role="tab" onClick={() => setTab('ai')}>
-            <IconSparkles size={16} strokeWidth={1.5} />
+            <IconWand size={16} strokeWidth={1.5} />
             AI
           </div>
           <div className={getTabClassname('support')} role="tab" onClick={() => setTab('support')}>
