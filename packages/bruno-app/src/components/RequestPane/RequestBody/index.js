@@ -4,6 +4,7 @@ import find from 'lodash/find';
 import CodeEditor from 'components/CodeEditor';
 import FormUrlEncodedParams from 'components/RequestPane/FormUrlEncodedParams';
 import MultipartFormParams from 'components/RequestPane/MultipartFormParams';
+import MockCandidatesPanel from 'components/RequestPane/MockCandidatesPanel';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTheme } from 'providers/Theme';
 import { updateRequestBody } from 'providers/ReduxStore/slices/collections';
@@ -61,22 +62,27 @@ const RequestBody = ({ item, collection }) => {
 
     return (
       <StyledWrapper className="w-full" data-testid="request-body-editor">
-        <CodeEditor
-          collection={collection}
-          item={item}
-          theme={displayedTheme}
-          font={get(preferences, 'font.codeFont', 'default')}
-          fontSize={get(preferences, 'font.codeFontSize')}
-          value={bodyContent[bodyMode] || ''}
-          onEdit={onEdit}
-          onRun={onRun}
-          onSave={onSave}
-          onScroll={onScroll}
-          initialScroll={focusedTab?.requestBodyScrollPosition || 0}
-          mode={codeMirrorMode[bodyMode]}
-          enableVariableHighlighting={true}
-          showHintsFor={['variables']}
-        />
+        <div className="flex flex-col h-full">
+          <div className="flex-1 min-h-0">
+            <CodeEditor
+              collection={collection}
+              item={item}
+              theme={displayedTheme}
+              font={get(preferences, 'font.codeFont', 'default')}
+              fontSize={get(preferences, 'font.codeFontSize')}
+              value={bodyContent[bodyMode] || ''}
+              onEdit={onEdit}
+              onRun={onRun}
+              onSave={onSave}
+              onScroll={onScroll}
+              initialScroll={focusedTab?.requestBodyScrollPosition || 0}
+              mode={codeMirrorMode[bodyMode]}
+              enableVariableHighlighting={true}
+              showHintsFor={['variables']}
+            />
+          </div>
+          <MockCandidatesPanel item={item} collection={collection} bodyType={bodyMode} />
+        </div>
       </StyledWrapper>
     );
   }

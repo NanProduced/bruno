@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import get from 'lodash/get';
 import {
   IconCaretDown,
@@ -8,7 +8,8 @@ import {
   IconFileText,
   IconDatabase,
   IconFile,
-  IconX
+  IconX,
+  IconWand
 } from '@tabler/icons';
 import MenuDropdown from 'ui/MenuDropdown';
 import { useDispatch } from 'react-redux';
@@ -19,6 +20,7 @@ import { updateRequestBody } from 'providers/ReduxStore/slices/collections/index
 import { toastError } from 'utils/common/error';
 import { prettifyJsonString } from 'utils/common/index';
 import xmlFormat from 'xml-formatter';
+import { startGeneration, generationSuccess, generationFailure } from 'providers/ReduxStore/slices/aiMock';
 
 const DEFAULT_MODES = [
   {
@@ -48,6 +50,7 @@ const DEFAULT_MODES = [
 
 const RequestBodyMode = ({ item, collection }) => {
   const dispatch = useDispatch();
+  const [isGeneratingMock, setIsGeneratingMock] = useState(false);
   const body = item.draft ? get(item, 'draft.request.body') : get(item, 'request.body');
   const bodyMode = body?.mode;
 
@@ -91,6 +94,42 @@ const RequestBodyMode = ({ item, collection }) => {
     }
   };
 
+  const onGenerateMock = async () => {
+    if (isGeneratingMock) return;
+
+    const method = item.draft ? get(item, 'draft.request.method') : get(item, 'request.method');
+    const url = item.draft ? get(item, 'draft.request.url') : get(item, 'request.url');
+    const docs = item.draft ? get(item, 'draft.request.docs') : get(item, 'request.docs');
+    const existingBody = body?.json || body?.text || body?.xml || '';
+
+    dispatch(startGeneration({ originalBody: existingBody }));
+    setIsGeneratingMock(true);
+
+    try {
+      const { ipcRenderer } = window;
+      const result = await ipcRenderer.invoke('renderer:generate-ai-mock', {
+        collectionPath: collection.pathname,
+        method,
+        url,
+        existingBody,
+        docs,
+        bodyType: bodyMode
+      });
+
+      if (result.success) {
+        dispatch(generationSuccess({ candidates: result.candidates }));
+      } else {
+        dispatch(generationFailure({ error: result.error }));
+        toastError(new Error(result.error));
+      }
+    } catch (err) {
+      dispatch(generationFailure({ error: err.message }));
+      toastError(new Error('Failed to generate mock data: ' + err.message));
+    } finally {
+      setIsGeneratingMock(false);
+    }
+  };
+
   const menuItems = useMemo(() => {
     return DEFAULT_MODES.map((group) => ({
       ...group,
@@ -100,6 +139,8 @@ const RequestBodyMode = ({ item, collection }) => {
       }))
     }));
   }, [onModeChange]);
+
+  const showAiMockBtn = bodyMode === 'json';
 
   return (
     <StyledWrapper>
@@ -116,6 +157,17 @@ const RequestBodyMode = ({ item, collection }) => {
           </div>
         </MenuDropdown>
       </div>
+      {showAiMockBtn && (
+        <button
+          className={`ml-2 ai-mock-btn ${isGeneratingMock ? 'generating' : ''}`}
+          onClick={onGenerateMock}
+          disabled={isGeneratingMock}
+          title="AI Generate Mock"
+        >
+          <IconWand size={12} strokeWidth={1.5} />
+          <span>{isGeneratingMock ? 'Generating...' : 'AI Mock'}</span>
+        </button>
+      )}
       {(bodyMode === 'json' || bodyMode === 'xml') && (
         <button className="ml-2" onClick={onPrettify}>
           Prettify

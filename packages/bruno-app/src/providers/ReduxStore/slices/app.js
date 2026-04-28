@@ -235,6 +235,20 @@ export const savePreferences = (preferences) => (dispatch, getState) => {
   });
 };
 
+export const getAiProviderConfig = () => (dispatch, getState) => {
+  return new Promise((resolve, reject) => {
+    const { ipcRenderer } = window;
+    ipcRenderer.invoke('renderer:get-ai-provider-config').then(resolve).catch(reject);
+  });
+};
+
+export const saveAiProviderConfig = (config) => (dispatch, getState) => {
+  return new Promise((resolve, reject) => {
+    const { ipcRenderer } = window;
+    ipcRenderer.invoke('renderer:save-ai-provider-config', config).then(resolve).catch(reject);
+  });
+};
+
 export const deleteCookiesForDomain = (domain) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
     const { ipcRenderer } = window;
