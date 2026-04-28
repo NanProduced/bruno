@@ -14,7 +14,7 @@ import {
   IconSquareX,
   IconBox,
   IconTerminal2,
-  IconSparkles
+  IconWand
 } from '@tabler/icons';
 
 import { importCollection, openCollection, importCollectionFromZip, newHttpRequest } from 'providers/ReduxStore/slices/collections/actions';
@@ -246,7 +246,7 @@ const CollectionsSection = () => {
   const addDropdownItems = [
     {
       id: 'ai-create-request',
-      leftSection: IconSparkles,
+      leftSection: IconWand,
       label: 'AI Create Request',
       onClick: () => {
         setAiCreateRequestModalOpen(true);
